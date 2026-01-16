@@ -81,7 +81,7 @@ module test_clock(
     reg [3:0] min_tens, min_ones;
     reg [3:0] sec_tens, sec_ones;
 
-    wire tick_en = run_en && !set_mode && tick_1hz;
+    wire tick_en = run_en && tick_1hz && (!set_mode || sw_mode_limit);
     wire inc_hour_clk = set_mode && !sw_mode_limit && pulse_rise && (sel == 2'd0);
     wire inc_min_clk  = set_mode && !sw_mode_limit && pulse_rise && (sel == 2'd1);
     wire inc_sec_clk  = set_mode && !sw_mode_limit && pulse_rise && (sel == 2'd2);
