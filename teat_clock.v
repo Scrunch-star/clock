@@ -1,24 +1,24 @@
 module test_clock(
     input clk,
     input rst_n,
-    input pill_pulse,
+    input inc,
     input start,
     input stop,
-    input bottle_ok,
-    input [3:0] sw_target_ones,
-    input [3:0] sw_target_tens,
-    input sw_mode_limit,
-    input sw_auto_move,
+    input alarm_en,
+    input [3:0] sw_ones,
+    input [3:0] sw_tens,
+    input mode_alarm,
+    input fast,
     output reg [6:0] seg_state,
-    output [3:0] lg2_pill_ones,
-    output [3:0] lg3_pill_tens,
-    output [3:0] lg4_bot_ones,
-    output [3:0] lg5_bot_tens,
-    output [3:0] lg6_bot_hund,
+    output [3:0] bcd_sec_tens,
+    output [3:0] bcd_min_ones,
+    output [3:0] bcd_min_tens,
+    output [3:0] bcd_hour_ones,
+    output [3:0] bcd_hour_tens,
     output alarm
 );
 
-    reg start_s, stop_s, pulse_s, bottle_s;
+    reg start_s, stop_s, pulse_s, alarm_s;
     reg start_d, stop_d, pulse_d;
 
     always @(posedge clk or negedge rst_n) begin
@@ -26,12 +26,12 @@ module test_clock(
             start_s <= 1'b0;
             stop_s <= 1'b0;
             pulse_s <= 1'b0;
-            bottle_s <= 1'b0;
+            alarm_s <= 1'b0;
         end else begin
             start_s <= start;
             stop_s <= stop;
-            pulse_s <= pill_pulse;
-            bottle_s <= bottle_ok;
+            pulse_s <= inc;
+            alarm_s <= alarm_en;
         end
     end
 
@@ -54,7 +54,7 @@ module test_clock(
     reg [9:0] div_cnt;
     reg tick_1hz;
     reg blink;
-    wire [9:0] div_max = sw_auto_move ? 10'd100 : 10'd1000;
+    wire [9:0] div_max = fast ? 10'd100 : 10'd1000;
 
     always @(posedge clk or negedge rst_n) begin
         if (!rst_n) begin
@@ -81,12 +81,12 @@ module test_clock(
     reg [3:0] min_tens, min_ones;
     reg [3:0] sec_tens, sec_ones;
 
-    wire tick_en = run_en && tick_1hz && (!set_mode || sw_mode_limit);
-    wire inc_hour_clk = set_mode && !sw_mode_limit && pulse_rise && (sel == 2'd0);
-    wire inc_min_clk  = set_mode && !sw_mode_limit && pulse_rise && (sel == 2'd1);
-    wire inc_sec_clk  = set_mode && !sw_mode_limit && pulse_rise && (sel == 2'd2);
-    wire inc_hour_alarm = set_mode && sw_mode_limit && pulse_rise && (sel == 2'd0);
-    wire inc_min_alarm  = set_mode && sw_mode_limit && pulse_rise && (sel == 2'd1);
+    wire tick_en = run_en && tick_1hz && (!set_mode || mode_alarm);
+    wire inc_hour_clk = set_mode && !mode_alarm && pulse_rise && (sel == 2'd0);
+    wire inc_min_clk  = set_mode && !mode_alarm && pulse_rise && (sel == 2'd1);
+    wire inc_sec_clk  = set_mode && !mode_alarm && pulse_rise && (sel == 2'd2);
+    wire inc_hour_alarm = set_mode && mode_alarm && pulse_rise && (sel == 2'd0);
+    wire inc_min_alarm  = set_mode && mode_alarm && pulse_rise && (sel == 2'd1);
 
     wire sec_ones_max = (sec_ones == 4'd9);
     wire sec_tens_max = (sec_tens == 4'd5);
@@ -119,9 +119,9 @@ module test_clock(
 
     reg alarm_active;
     reg [5:0] alarm_ring_cnt;
-    wire alarm_en = bottle_s;
+    wire alarm_enable = alarm_s;
 
-    wire alarm_fire = alarm_en && !set_mode && tick_en &&
+    wire alarm_fire = alarm_enable && !set_mode && tick_en &&
                       (sec_tens == 4'd0) && (sec_ones == 4'd0) &&
                       (min_tens == alarm_min_tens) && (min_ones == alarm_min_ones) &&
                       (hour_tens == alarm_hour_tens) && (hour_ones == alarm_hour_ones);
@@ -162,7 +162,7 @@ module test_clock(
             end
 
             if (set_mode && start_rise) begin
-                if (sw_mode_limit) begin
+                if (mode_alarm) begin
                     if (sel == 2'd1) sel <= 2'd0;
                     else sel <= sel + 2'd1;
                 end else begin
@@ -225,7 +225,7 @@ module test_clock(
                 end
             end
 
-            if (!alarm_en) begin
+            if (!alarm_enable) begin
                 alarm_active <= 1'b0;
                 alarm_ring_cnt <= 6'd0;
             end else if (alarm_fire) begin
@@ -270,7 +270,7 @@ module test_clock(
         end
     end
 
-    wire edit_alarm = set_mode && sw_mode_limit;
+    wire edit_alarm = set_mode && mode_alarm;
     wire [3:0] disp_hour_tens = edit_alarm ? alarm_hour_tens : hour_tens;
     wire [3:0] disp_hour_ones = edit_alarm ? alarm_hour_ones : hour_ones;
     wire [3:0] disp_min_tens  = edit_alarm ? alarm_min_tens  : min_tens;
@@ -279,7 +279,7 @@ module test_clock(
     wire [3:0] disp_sec_ones  = edit_alarm ? 4'd0 : sec_ones;
 
     always @(*) begin
-        if (set_mode && !sw_mode_limit && (sel == 2'd2) && !blink) begin
+        if (set_mode && !mode_alarm && (sel == 2'd2) && !blink) begin
             seg_state = 7'b0000000;
         end else begin
             case (disp_sec_ones)
@@ -299,19 +299,19 @@ module test_clock(
     end
 
     wire blink_off = set_mode && !blink;
-    wire sel_clk_hour = set_mode && !sw_mode_limit && (sel == 2'd0);
-    wire sel_clk_min  = set_mode && !sw_mode_limit && (sel == 2'd1);
-    wire sel_clk_sec  = set_mode && !sw_mode_limit && (sel == 2'd2);
-    wire sel_alarm_hour = set_mode && sw_mode_limit && (sel == 2'd0);
-    wire sel_alarm_min  = set_mode && sw_mode_limit && (sel == 2'd1);
+    wire sel_clk_hour = set_mode && !mode_alarm && (sel == 2'd0);
+    wire sel_clk_min  = set_mode && !mode_alarm && (sel == 2'd1);
+    wire sel_clk_sec  = set_mode && !mode_alarm && (sel == 2'd2);
+    wire sel_alarm_hour = set_mode && mode_alarm && (sel == 2'd0);
+    wire sel_alarm_min  = set_mode && mode_alarm && (sel == 2'd1);
 
     wire [3:0] blank_bcd = 4'hf;
 
-    assign lg2_pill_ones = (blink_off && sel_clk_sec) ? blank_bcd : disp_sec_tens;
-    assign lg3_pill_tens = (blink_off && (sel_clk_min || sel_alarm_min)) ? blank_bcd : disp_min_ones;
-    assign lg4_bot_ones  = (blink_off && (sel_clk_min || sel_alarm_min)) ? blank_bcd : disp_min_tens;
-    assign lg5_bot_tens  = (blink_off && (sel_clk_hour || sel_alarm_hour)) ? blank_bcd : disp_hour_ones;
-    assign lg6_bot_hund  = (blink_off && (sel_clk_hour || sel_alarm_hour)) ? blank_bcd : disp_hour_tens;
+    assign bcd_sec_tens  = (blink_off && sel_clk_sec) ? blank_bcd : disp_sec_tens;
+    assign bcd_min_ones  = (blink_off && (sel_clk_min || sel_alarm_min)) ? blank_bcd : disp_min_ones;
+    assign bcd_min_tens  = (blink_off && (sel_clk_min || sel_alarm_min)) ? blank_bcd : disp_min_tens;
+    assign bcd_hour_ones = (blink_off && (sel_clk_hour || sel_alarm_hour)) ? blank_bcd : disp_hour_ones;
+    assign bcd_hour_tens = (blink_off && (sel_clk_hour || sel_alarm_hour)) ? blank_bcd : disp_hour_tens;
 
     assign alarm = alarm_active ? clk : (chime_active ? clk : (set_mode ? blink : 1'b0));
 

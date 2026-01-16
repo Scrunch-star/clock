@@ -22,27 +22,27 @@ set_global_assignment -name MAX7000_DEVICE_IO_STANDARD TTL
 # ========================
 set_location_assignment PIN_57 -to clk
 set_location_assignment PIN_1 -to rst_n
-set_location_assignment PIN_60 -to pill_pulse
+set_location_assignment PIN_60 -to inc
 set_location_assignment PIN_81 -to start
 set_location_assignment PIN_80 -to stop
-set_location_assignment PIN_79 -to bottle_ok
+set_location_assignment PIN_79 -to alarm_en
 set_location_assignment PIN_52 -to alarm
 
 # ========================
 # K开关输入 (ABCD码)
 # ========================
-set_location_assignment PIN_77 -to sw_target_ones[0]
-set_location_assignment PIN_76 -to sw_target_ones[1]
-set_location_assignment PIN_75 -to sw_target_ones[2]
-set_location_assignment PIN_74 -to sw_target_ones[3]
+set_location_assignment PIN_77 -to sw_ones[0]
+set_location_assignment PIN_76 -to sw_ones[1]
+set_location_assignment PIN_75 -to sw_ones[2]
+set_location_assignment PIN_74 -to sw_ones[3]
 
-set_location_assignment PIN_73 -to sw_target_tens[0]
-set_location_assignment PIN_70 -to sw_target_tens[1]
-set_location_assignment PIN_69 -to sw_target_tens[2]
-set_location_assignment PIN_68 -to sw_target_tens[3]
+set_location_assignment PIN_73 -to sw_tens[0]
+set_location_assignment PIN_70 -to sw_tens[1]
+set_location_assignment PIN_69 -to sw_tens[2]
+set_location_assignment PIN_68 -to sw_tens[3]
 
-set_location_assignment PIN_67 -to sw_mode_limit
-set_location_assignment PIN_65 -to sw_auto_move
+set_location_assignment PIN_67 -to mode_alarm
+set_location_assignment PIN_65 -to fast
 
 # ========================
 # LG1: 7段直控
@@ -58,30 +58,30 @@ set_location_assignment PIN_51 -to seg_state[0]
 # ========================
 # LG2~LG6: BCD输出
 # ========================
-set_location_assignment PIN_37 -to lg2_pill_ones[0]
-set_location_assignment PIN_39 -to lg2_pill_ones[1]
-set_location_assignment PIN_40 -to lg2_pill_ones[2]
-set_location_assignment PIN_41 -to lg2_pill_ones[3]
+set_location_assignment PIN_37 -to bcd_sec_tens[0]
+set_location_assignment PIN_39 -to bcd_sec_tens[1]
+set_location_assignment PIN_40 -to bcd_sec_tens[2]
+set_location_assignment PIN_41 -to bcd_sec_tens[3]
 
-set_location_assignment PIN_35 -to lg3_pill_tens[0]
-set_location_assignment PIN_36 -to lg3_pill_tens[1]
-set_location_assignment PIN_17 -to lg3_pill_tens[2]
-set_location_assignment PIN_18 -to lg3_pill_tens[3]
+set_location_assignment PIN_35 -to bcd_min_ones[0]
+set_location_assignment PIN_36 -to bcd_min_ones[1]
+set_location_assignment PIN_17 -to bcd_min_ones[2]
+set_location_assignment PIN_18 -to bcd_min_ones[3]
 
-set_location_assignment PIN_30 -to lg4_bot_ones[0]
-set_location_assignment PIN_31 -to lg4_bot_ones[1]
-set_location_assignment PIN_33 -to lg4_bot_ones[2]
-set_location_assignment PIN_34 -to lg4_bot_ones[3]
+set_location_assignment PIN_30 -to bcd_min_tens[0]
+set_location_assignment PIN_31 -to bcd_min_tens[1]
+set_location_assignment PIN_33 -to bcd_min_tens[2]
+set_location_assignment PIN_34 -to bcd_min_tens[3]
 
-set_location_assignment PIN_25 -to lg5_bot_tens[0]
-set_location_assignment PIN_27 -to lg5_bot_tens[1]
-set_location_assignment PIN_28 -to lg5_bot_tens[2]
-set_location_assignment PIN_29 -to lg5_bot_tens[3]
+set_location_assignment PIN_25 -to bcd_hour_ones[0]
+set_location_assignment PIN_27 -to bcd_hour_ones[1]
+set_location_assignment PIN_28 -to bcd_hour_ones[2]
+set_location_assignment PIN_29 -to bcd_hour_ones[3]
 
-set_location_assignment PIN_20 -to lg6_bot_hund[0]
-set_location_assignment PIN_21 -to lg6_bot_hund[1]
-set_location_assignment PIN_22 -to lg6_bot_hund[2]
-set_location_assignment PIN_24 -to lg6_bot_hund[3]
+set_location_assignment PIN_20 -to bcd_hour_tens[0]
+set_location_assignment PIN_21 -to bcd_hour_tens[1]
+set_location_assignment PIN_22 -to bcd_hour_tens[2]
+set_location_assignment PIN_24 -to bcd_hour_tens[3]
 
 
 set_global_assignment -name MISC_FILE "C:/clock/teat_clock.dpf"
