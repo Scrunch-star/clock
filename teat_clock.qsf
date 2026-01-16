@@ -22,7 +22,7 @@ set_global_assignment -name MAX7000_DEVICE_IO_STANDARD TTL
 # ========================
 set_location_assignment PIN_57 -to clk
 set_location_assignment PIN_1 -to rst_n
-set_location_assignment PIN_58 -to pill_pulse
+set_location_assignment PIN_60 -to pill_pulse
 set_location_assignment PIN_81 -to start
 set_location_assignment PIN_80 -to stop
 set_location_assignment PIN_79 -to bottle_ok

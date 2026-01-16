@@ -51,23 +51,23 @@ module test_clock(
     wire stop_rise  = stop_s & ~stop_d;
     wire pulse_rise = pulse_s & ~pulse_d;
 
-    reg [15:0] div_cnt;
+    reg [9:0] div_cnt;
     reg tick_1hz;
     reg blink;
-    wire [15:0] div_max = sw_auto_move ? 16'd100 : 16'd1000;
+    wire [9:0] div_max = sw_auto_move ? 10'd100 : 10'd1000;
 
     always @(posedge clk or negedge rst_n) begin
         if (!rst_n) begin
-            div_cnt <= 16'd0;
+            div_cnt <= 10'd0;
             tick_1hz <= 1'b0;
             blink <= 1'b0;
         end else begin
-            if (div_cnt == (div_max - 16'd1)) begin
-                div_cnt <= 16'd0;
+            if (div_cnt == (div_max - 10'd1)) begin
+                div_cnt <= 10'd0;
                 tick_1hz <= 1'b1;
                 blink <= ~blink;
             end else begin
-                div_cnt <= div_cnt + 16'd1;
+                div_cnt <= div_cnt + 10'd1;
                 tick_1hz <= 1'b0;
             end
         end
@@ -82,9 +82,11 @@ module test_clock(
     reg [3:0] sec_tens, sec_ones;
 
     wire tick_en = run_en && !set_mode && tick_1hz;
-    wire inc_hour = set_mode && pulse_rise && (sel == 2'd0);
-    wire inc_min  = set_mode && pulse_rise && (sel == 2'd1);
-    wire inc_sec  = set_mode && pulse_rise && (sel == 2'd2);
+    wire inc_hour_clk = set_mode && !sw_mode_limit && pulse_rise && (sel == 2'd0);
+    wire inc_min_clk  = set_mode && !sw_mode_limit && pulse_rise && (sel == 2'd1);
+    wire inc_sec_clk  = set_mode && !sw_mode_limit && pulse_rise && (sel == 2'd2);
+    wire inc_hour_alarm = set_mode && sw_mode_limit && pulse_rise && (sel == 2'd0);
+    wire inc_min_alarm  = set_mode && sw_mode_limit && pulse_rise && (sel == 2'd1);
 
     wire sec_ones_max = (sec_ones == 4'd9);
     wire sec_tens_max = (sec_tens == 4'd5);
@@ -93,15 +95,42 @@ module test_clock(
     wire hour_ones_max = (hour_tens == 4'd2) ? (hour_ones == 4'd3) : (hour_ones == 4'd9);
     wire hour_is_23 = (hour_tens == 4'd2) && (hour_ones == 4'd3);
 
-    wire en_sec = tick_en | inc_sec;
+    wire en_sec = tick_en | inc_sec_clk;
     wire carry_sec_ones = en_sec & sec_ones_max;
     wire carry_sec = carry_sec_ones & sec_tens_max;
+    wire carry_sec_tick = tick_en & sec_ones_max & sec_tens_max;
 
-    wire en_min = carry_sec | inc_min;
+    wire en_min = carry_sec_tick | inc_min_clk;
     wire carry_min_ones = en_min & min_ones_max;
-    wire carry_min = carry_min_ones & min_tens_max;
+    wire carry_min_tick = carry_sec_tick & min_ones_max & min_tens_max;
 
-    wire en_hour = carry_min | inc_hour;
+    wire en_hour = carry_min_tick | inc_hour_clk;
+
+    reg [3:0] alarm_hour_tens, alarm_hour_ones;
+    reg [3:0] alarm_min_tens, alarm_min_ones;
+
+    wire alarm_min_ones_max = (alarm_min_ones == 4'd9);
+    wire alarm_min_tens_max = (alarm_min_tens == 4'd5);
+    wire alarm_hour_ones_max = (alarm_hour_tens == 4'd2) ? (alarm_hour_ones == 4'd3) : (alarm_hour_ones == 4'd9);
+    wire alarm_hour_is_23 = (alarm_hour_tens == 4'd2) && (alarm_hour_ones == 4'd3);
+
+    wire alarm_carry_min_ones = inc_min_alarm & alarm_min_ones_max;
+    wire alarm_en_hour = inc_hour_alarm;
+
+    reg alarm_active;
+    reg [5:0] alarm_ring_cnt;
+    wire alarm_en = bottle_s;
+
+    wire alarm_fire = alarm_en && !set_mode && tick_en &&
+                      (sec_tens == 4'd0) && (sec_ones == 4'd0) &&
+                      (min_tens == alarm_min_tens) && (min_ones == alarm_min_ones) &&
+                      (hour_tens == alarm_hour_tens) && (hour_ones == alarm_hour_ones);
+
+    reg chime_active;
+    reg [1:0] chime_cnt;
+    wire chime_fire = !set_mode && run_en && tick_1hz &&
+                      (sec_tens == 4'd0) && (sec_ones == 4'd0) &&
+                      (min_tens == 4'd0) && (min_ones == 4'd0);
 
     always @(posedge clk or negedge rst_n) begin
         if (!rst_n) begin
@@ -114,6 +143,14 @@ module test_clock(
             min_ones <= 4'd0;
             sec_tens <= 4'd0;
             sec_ones <= 4'd0;
+            alarm_hour_tens <= 4'd0;
+            alarm_hour_ones <= 4'd0;
+            alarm_min_tens <= 4'd0;
+            alarm_min_ones <= 4'd0;
+            alarm_active <= 1'b0;
+            alarm_ring_cnt <= 6'd0;
+            chime_active <= 1'b0;
+            chime_cnt <= 2'd0;
         end else begin
             if (start_rise && !set_mode) begin
                 run_en <= ~run_en;
@@ -125,8 +162,13 @@ module test_clock(
             end
 
             if (set_mode && start_rise) begin
-                if (sel == 2'd2) sel <= 2'd0;
-                else sel <= sel + 2'd1;
+                if (sw_mode_limit) begin
+                    if (sel == 2'd1) sel <= 2'd0;
+                    else sel <= sel + 2'd1;
+                end else begin
+                    if (sel == 2'd2) sel <= 2'd0;
+                    else sel <= sel + 2'd1;
+                end
             end
 
             if (en_sec) begin
@@ -160,31 +202,117 @@ module test_clock(
                     hour_ones <= hour_ones + 4'd1;
                 end
             end
+
+            if (inc_min_alarm) begin
+                if (alarm_min_ones_max) alarm_min_ones <= 4'd0;
+                else alarm_min_ones <= alarm_min_ones + 4'd1;
+            end
+
+            if (alarm_carry_min_ones) begin
+                if (alarm_min_tens_max) alarm_min_tens <= 4'd0;
+                else alarm_min_tens <= alarm_min_tens + 4'd1;
+            end
+
+            if (alarm_en_hour) begin
+                if (alarm_hour_is_23) begin
+                    alarm_hour_tens <= 4'd0;
+                    alarm_hour_ones <= 4'd0;
+                end else if (alarm_hour_ones_max) begin
+                    alarm_hour_ones <= 4'd0;
+                    alarm_hour_tens <= alarm_hour_tens + 4'd1;
+                end else begin
+                    alarm_hour_ones <= alarm_hour_ones + 4'd1;
+                end
+            end
+
+            if (!alarm_en) begin
+                alarm_active <= 1'b0;
+                alarm_ring_cnt <= 6'd0;
+            end else if (alarm_fire) begin
+                alarm_active <= 1'b1;
+                alarm_ring_cnt <= 6'd0;
+            end else if (alarm_active) begin
+                if (start_rise || stop_rise) begin
+                    alarm_active <= 1'b0;
+                    alarm_ring_cnt <= 6'd0;
+                end else if (tick_en) begin
+                    if (alarm_ring_cnt == 6'd29) begin
+                        alarm_active <= 1'b0;
+                        alarm_ring_cnt <= 6'd0;
+                    end else begin
+                        alarm_ring_cnt <= alarm_ring_cnt + 6'd1;
+                    end
+                end
+            end
+
+            if (set_mode) begin
+                chime_active <= 1'b0;
+                chime_cnt <= 2'd0;
+            end else if (alarm_active || alarm_fire) begin
+                chime_active <= 1'b0;
+                chime_cnt <= 2'd0;
+            end else if (chime_fire) begin
+                chime_active <= 1'b1;
+                chime_cnt <= 2'd0;
+            end else if (chime_active) begin
+                if (start_rise || stop_rise) begin
+                    chime_active <= 1'b0;
+                    chime_cnt <= 2'd0;
+                end else if (tick_1hz) begin
+                    if (chime_cnt == 2'd1) begin
+                        chime_active <= 1'b0;
+                        chime_cnt <= 2'd0;
+                    end else begin
+                        chime_cnt <= chime_cnt + 2'd1;
+                    end
+                end
+            end
         end
     end
 
+    wire edit_alarm = set_mode && sw_mode_limit;
+    wire [3:0] disp_hour_tens = edit_alarm ? alarm_hour_tens : hour_tens;
+    wire [3:0] disp_hour_ones = edit_alarm ? alarm_hour_ones : hour_ones;
+    wire [3:0] disp_min_tens  = edit_alarm ? alarm_min_tens  : min_tens;
+    wire [3:0] disp_min_ones  = edit_alarm ? alarm_min_ones  : min_ones;
+    wire [3:0] disp_sec_tens  = edit_alarm ? 4'd0 : sec_tens;
+    wire [3:0] disp_sec_ones  = edit_alarm ? 4'd0 : sec_ones;
+
     always @(*) begin
-        case (sec_ones)
-            4'd0: seg_state = 7'b1111110;
-            4'd1: seg_state = 7'b0110000;
-            4'd2: seg_state = 7'b1101101;
-            4'd3: seg_state = 7'b1111001;
-            4'd4: seg_state = 7'b0110011;
-            4'd5: seg_state = 7'b1011011;
-            4'd6: seg_state = 7'b1011111;
-            4'd7: seg_state = 7'b1110000;
-            4'd8: seg_state = 7'b1111111;
-            4'd9: seg_state = 7'b1111011;
-            default: seg_state = 7'b0000000;
-        endcase
+        if (set_mode && !sw_mode_limit && (sel == 2'd2) && !blink) begin
+            seg_state = 7'b0000000;
+        end else begin
+            case (disp_sec_ones)
+                4'd0: seg_state = 7'b1111110;
+                4'd1: seg_state = 7'b0110000;
+                4'd2: seg_state = 7'b1101101;
+                4'd3: seg_state = 7'b1111001;
+                4'd4: seg_state = 7'b0110011;
+                4'd5: seg_state = 7'b1011011;
+                4'd6: seg_state = 7'b1011111;
+                4'd7: seg_state = 7'b1110000;
+                4'd8: seg_state = 7'b1111111;
+                4'd9: seg_state = 7'b1111011;
+                default: seg_state = 7'b0000000;
+            endcase
+        end
     end
 
-    assign lg2_pill_ones = sec_tens;
-    assign lg3_pill_tens = min_ones;
-    assign lg4_bot_ones  = min_tens;
-    assign lg5_bot_tens  = hour_ones;
-    assign lg6_bot_hund  = hour_tens;
+    wire blink_off = set_mode && !blink;
+    wire sel_clk_hour = set_mode && !sw_mode_limit && (sel == 2'd0);
+    wire sel_clk_min  = set_mode && !sw_mode_limit && (sel == 2'd1);
+    wire sel_clk_sec  = set_mode && !sw_mode_limit && (sel == 2'd2);
+    wire sel_alarm_hour = set_mode && sw_mode_limit && (sel == 2'd0);
+    wire sel_alarm_min  = set_mode && sw_mode_limit && (sel == 2'd1);
 
-    assign alarm = set_mode ? blink : 1'b0;
+    wire [3:0] blank_bcd = 4'hf;
+
+    assign lg2_pill_ones = (blink_off && sel_clk_sec) ? blank_bcd : disp_sec_tens;
+    assign lg3_pill_tens = (blink_off && (sel_clk_min || sel_alarm_min)) ? blank_bcd : disp_min_ones;
+    assign lg4_bot_ones  = (blink_off && (sel_clk_min || sel_alarm_min)) ? blank_bcd : disp_min_tens;
+    assign lg5_bot_tens  = (blink_off && (sel_clk_hour || sel_alarm_hour)) ? blank_bcd : disp_hour_ones;
+    assign lg6_bot_hund  = (blink_off && (sel_clk_hour || sel_alarm_hour)) ? blank_bcd : disp_hour_tens;
+
+    assign alarm = alarm_active ? clk : (chime_active ? clk : (set_mode ? blink : 1'b0));
 
 endmodule
